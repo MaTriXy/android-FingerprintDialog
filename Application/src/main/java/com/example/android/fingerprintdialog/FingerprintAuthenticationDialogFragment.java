@@ -16,11 +16,12 @@
 
 package com.example.android.fingerprintdialog;
 
-import android.app.Activity;
 import android.app.DialogFragment;
+import android.content.Context;
 import android.content.SharedPreferences;
 import android.hardware.fingerprint.FingerprintManager;
 import android.os.Bundle;
+import android.preference.PreferenceManager;
 import android.view.KeyEvent;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -32,8 +33,6 @@ import android.widget.CheckBox;
 import android.widget.EditText;
 import android.widget.ImageView;
 import android.widget.TextView;
-
-import javax.inject.Inject;
 
 /**
  * A dialog which uses fingerprint APIs to authenticate the user, and falls back to password
@@ -57,12 +56,8 @@ public class FingerprintAuthenticationDialogFragment extends DialogFragment
     private FingerprintUiHelper mFingerprintUiHelper;
     private MainActivity mActivity;
 
-    @Inject FingerprintUiHelper.FingerprintUiHelperBuilder mFingerprintUiHelperBuilder;
-    @Inject InputMethodManager mInputMethodManager;
-    @Inject SharedPreferences mSharedPreferences;
-
-    @Inject
-    public FingerprintAuthenticationDialogFragment() {}
+    private InputMethodManager mInputMethodManager;
+    private SharedPreferences mSharedPreferences;
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
@@ -106,7 +101,8 @@ public class FingerprintAuthenticationDialogFragment extends DialogFragment
                 v.findViewById(R.id.use_fingerprint_in_future_check);
         mNewFingerprintEnrolledTextView = (TextView)
                 v.findViewById(R.id.new_fingerprint_enrolled_description);
-        mFingerprintUiHelper = mFingerprintUiHelperBuilder.build(
+        mFingerprintUiHelper = new FingerprintUiHelper(
+                mActivity.getSystemService(FingerprintManager.class),
                 (ImageView) v.findViewById(R.id.fingerprint_icon),
                 (TextView) v.findViewById(R.id.fingerprint_status), this);
         updateStage();
@@ -138,9 +134,11 @@ public class FingerprintAuthenticationDialogFragment extends DialogFragment
     }
 
     @Override
-    public void onAttach(Activity activity) {
-        super.onAttach(activity);
-        mActivity = (MainActivity) activity;
+    public void onAttach(Context context) {
+        super.onAttach(context);
+        mActivity = (MainActivity) getActivity();
+        mInputMethodManager = context.getSystemService(InputMethodManager.class);
+        mSharedPreferences = PreferenceManager.getDefaultSharedPreferences(context);
     }
 
     /**
@@ -183,12 +181,12 @@ public class FingerprintAuthenticationDialogFragment extends DialogFragment
 
             if (mUseFingerprintFutureCheckBox.isChecked()) {
                 // Re-create the key so that fingerprints including new ones are validated.
-                mActivity.createKey();
+                mActivity.createKey(MainActivity.DEFAULT_KEY_NAME, true);
                 mStage = Stage.FINGERPRINT;
             }
         }
         mPassword.setText("");
-        mActivity.onPurchased(false /* without Fingerprint */);
+        mActivity.onPurchased(false /* without Fingerprint */, null);
         dismiss();
     }
 
@@ -245,7 +243,7 @@ public class FingerprintAuthenticationDialogFragment extends DialogFragment
     public void onAuthenticated() {
         // Callback from FingerprintUiHelper. Let the activity know that authentication was
         // successful.
-        mActivity.onPurchased(true /* withFingerprint */);
+        mActivity.onPurchased(true /* withFingerprint */, mCryptoObject);
         dismiss();
     }
 
